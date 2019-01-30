@@ -1,0 +1,201 @@
+---
+title: "Homework 1"
+author: "Andrew Edelblum"
+date: "1/27/2019"
+output: html_document
+---
+
+Alright, let's get this gravy train started! There's a lot of merging and visualizing to do, and time is a-wasting! 
+
+The current data came from a project designed to examine student course interaction behaviors, performance and satisfaction. Students engaged with a Virtual Learning Environment (VLE) for seven selected courses. Before even looking at specific result, I'd like to get a sense of the demographic composition of the 30,000+ students enrolled. Let's get importing!
+
+NOTE: In addition to calling the data, I'm also changing one of the variables — highest_education — to a factor and reordering its categories. This will be important shortly, as we seek to make our visualizations as accessible as possible.
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+library(rio)
+library(ggplot2)
+library(dplyr)
+```
+
+# Import first dataset.
+
+```{r import_info}
+info <- import("./studentInfo.csv", setclass = "tibble")
+
+info$highest_education <- factor(info$highest_education, levels = c("Post Graduate Qualification", "HE Qualification", "A Level or Equivalent", "Lower Than A Level", "No Formal quals"))
+```
+
+# Visualization #1.
+
+```{r age_plot}
+ggplot(info, aes(x = age_band, fill = gender)) +
+  geom_histogram(stat = "count", bins = 30, position = "dodge", alpha = .8) +
+  theme_minimal() +
+  facet_wrap(~highest_education) +
+  scale_fill_discrete(name = "Gender") +
+  labs(x = "Age Range", y = "Count", title = "Number of students in each age range, separated by gender and level of highest education")
+```
+
+From this plot, we can say at least a couple of things about the students enrolled in the VLE modules. 
+
+- Their highest level of education is predominantly A-level or equivalent or lower than A-level. (Quick note: I *definitely* had to look up what A-level and HE qualification mean.)
+- A majority of the students are in the 0-35 year-old age range. That isn't surprising, given that most students are generally within this age range.
+
+# Mutating join #1.
+
+OK, this dempgraphics dataset isn't going to cut it for the rest of this analysis. In order to make real sense of the data provided, we're going to need to perform some `joins`. 
+
+```{r join1}
+assess <- import("./studentAssessment.csv", setclass = "tibble") %>% 
+  mutate(score = as.numeric(score))
+
+info_assess <- left_join(info, assess, by = "id_student")
+
+info_assess$final_result <- factor(info_assess$final_result, levels = c("Fail", "Withdrawn", "Pass", "Distinction"))
+```
+
+# Visualization replication.
+
+Now, since we have all the data in this merged dataset necessary to create visualization we've been asked to replicate, I'll jump to that next. We're interested in seeing the average TMA score as displayed by highest level of education, gender, and final result designation. In other words, we can see if there are differences in TMA score based on these different factors.
+
+That means we're going to have to perform another `join`, to merge our **info_assess** dataframe with the **assessments** dataset. This is because we'll be filtering for students' test scores on the TMA only, and assessment type is in another dataset.
+
+```{r replicate_plot}
+info_assess$highest_education <- factor(info_assess$highest_education, levels = c("No Formal quals", "Lower Than A Level", "A Level or Equivalent", "HE Qualification", "Post Graduate Qualification"))
+
+assessments <- import("./assessments.csv", setclass = "tibble")
+all_three_tma <- left_join(info_assess, assessments) %>% 
+  filter(assessment_type == "TMA")
+
+ggplot(all_three_tma, aes(x = highest_education, y = score, fill = gender)) +
+  geom_bar(stat = "summary", position = "dodge", alpha = .8) +
+  facet_wrap(~final_result, ncol = 1) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Highest Education", y = "Average Score", title = "Average TMA Scores", subtitle = "Results displayed by education, gender, and final result designation") +
+  scale_fill_discrete(name = "Gender")
+```
+
+# Filtering join #1.
+
+Hooray! Now that we finished that part of the assignment, it's time to let curiosity do the talking. Let's adventure a bit with these data. 
+
+For our next plunge, I'd like to see if deprivation had any impact on TMA scores. After doing a bit of research, I found that the *imd_band* variable refers to a measure instituted in England known as the Multiple Deprivation Index. The index charts the degree of deprivation in various small areas in England, based on their:
+
+- Income deprivation
+- Employment deprivation
+- Education, skills, and training deprivation
+- Health deprivation and disability
+- Crime 
+- Barriers to housing and services
+- Living environment deprivation
+
+These individual dimensions seem to uniquely define aspects of deprivation, a latent construct. The range in percentages is how the IMD is measured. These ranges refer to where a particular area ranks among others in terms of its deprivation. Is it within the 0-10% most deprived areas? The 10-20%? The 20-30%?
+
+As such, 0-10% represents the most deprived areas, whereas 90-100% represents the least deprived areas. I would like to compare students from these areas in terms of their TMA scores.
+
+To do this, we will filter our original **info** dataframe to include on those whose *imd_band* = "0-10%" or "90-100%." Pitting these two against one another will provide perhaps the most parismonious means of assessing the impact of deprivation on score. We will then perform a `semi_join` to merge our filtered **info** dataframe with those students' test scores.
+
+```{r filter_join}
+ses <- info %>% 
+  filter(imd_band == "0-10%" | imd_band == "90-100%")
+
+ses_info_assess <- semi_join(info_assess, ses)
+```
+
+Alright, now let's see if deprivation indeed impacted TMA score. We'll run a plot similar to the one above, except by substituting highest level of education with deprivation. That means we'll be parsing out differences in score by gender and final result designation as well. 
+
+# Visualization #2.
+
+```{r ses_viz}
+ggplot(ses_info_assess, aes(x = imd_band, y = score, fill = gender)) +
+  geom_bar(stat = "summary", position = "dodge", alpha = .8) +
+  theme_minimal() +
+  coord_flip() +
+  facet_wrap(~final_result, ncol = 1) +
+  labs(x = "Deprivation", y = "Average Score", title = "Average TMA Scores", subtitle = "Results displayed by deprivation, gender, and final result designation") +
+  scale_fill_discrete(name = "Gender")
+```
+
+These differences are very slight. At least visually speaking, there doesn't seem to be much of an impact on score based on deprivation. But this data presentation style could be biased in a number of ways. Notably, this plot simply provides information about the average score of students within one of two deprivation categories. It does *not* provide information about **what proportion** of students received that score.
+
+So, let's check that out with a quick density plot!
+
+```{r density}
+ggplot(ses_info_assess, aes(x = score, fill = imd_band)) +
+  geom_density(bw = 3, alpha = .6) +
+  theme_minimal() +
+  scale_fill_discrete(name = "Deprivation") +
+  labs(x = "Average Score", y = "Density", title = "Density Plot of TMA Scores", subtitle = "Results displayed by highest vs. lowest level of deprivation")
+```
+
+This density plot is somewhat revealing. Interestingly, it looks like a greater proportion of 0-10% IMD band students had lower TMA scores than 90-100% IMD band students. In other words, the underlying density distribution for 90-100% IMD band students was more negatively skewed than it was for 0-10% IMD band students.
+
+Also, of note is that this difference is only noticeable in aggregate. When faceting by final result designation, the differences are only slightly apparent.
+
+```{r density_facet}
+ggplot(ses_info_assess, aes(x = score)) +
+  geom_density(bw = 3, alpha = .6, aes(fill = imd_band)) +
+  guides(fill = guide_legend(title = "Deprivation")) +
+  theme_minimal() +
+  facet_wrap(~final_result, ncol = 1) +
+  labs(x = "Average Score", y = "Density", title = "Density Plot of TMA Scores", subtitle = "Results displayed by highest vs. lowest level of deprivation")
+```
+
+# Mutating join #2. 
+
+For my next trick, I'll like to look more at the assessment types offered by the VLE. To do this, I'll `join` the **student_assessment** dataset with the general **assessments** dataset. 
+
+```{r mutate2}
+assess_assessments <- left_join(assess, assessments)
+```
+
+Woot! Now that we're created a new dataframe that merges both datasets, we're ready to look at the distribution of scores on the three different assessment types: Computer-Marked Assessment (CMA), Tutor-Marked Assessment (TMA), and Final Exam (Exam). 
+
+Since I'm currently *obsessed* with the look of density distributions overlayed on top of one another, I'll make another one. (It just looks really pretty, like some statistical abstract art!) This has more than just an aesthetic purpose, however. It's meant to showcase differences in the underlying distribution of scores between each of the three assessment types.
+
+# Visualization #3.
+
+```{r density_assess}
+ggplot(assess_assessments, aes(x = score)) +
+  geom_density(bw = 4, alpha = .6, aes(fill = assessment_type)) +
+  theme_minimal() +
+  guides(fill = guide_legend(title = "Assessment Type")) +
+  labs(x = "Score", y = "Density", title = "Density Plot of Score by Assessment Type")
+```
+
+Wow, it looks like scores for both the CMA and TMA are highly negatively skewed, whereas the final exam at least somewhat approximates a normal distribution (with a ballpark of $\approx$ 60). Of course, there are ceiling effects in play here, such that no student could score > 100. Thus, it is impossible to extrapolate beyond the range given. 
+
+But suffice it to say, there is much more variance in scores on the final exam than either the CMA or TMA. Why might this be the case? Well, this is all conjecture, but it appears that the CMA and TMA involved a computer and a tutor respectively. To my knowledge, Open University does not provide any information about the form these exams took, but it is plausible that they involved tutor or computer mediation. Perhaps those tools increased test scores, relative to the final exam, where these resources were either absent or unavailable.
+
+# Mutating join #3.
+
+Welp, looks like there's still one more mutating `join` to do. I will merge our already merged **assess_assessments** dataframe with **courses**. Of note, the **courses** dataset contains information about how long each module was in minutes. I would like to see if scores on each assessment type varied depending on how long the modules were.
+
+But let's not get too ahead of ourselves! Let's perform the `join` first~
+
+```{r join3}
+courses <- import("./courses.csv", setclass = "tibble")
+
+assess_courses <- left_join(assess_assessments, courses)
+```
+
+Great! Now that we have that covered, it's time to plot it out. Is there a difference in test scores based on how long each module was?
+
+# Visualization #4.
+
+```{r bar_length}
+ggplot(assess_courses, aes(x = module_presentation_length, y = score, fill = module_presentation_length)) +
+  geom_bar(stat = "summary", alpha = .8) +
+  coord_flip() +
+  facet_wrap(~assessment_type, ncol = 1) +
+  theme_minimal() +
+  labs(x = "Module Presentation Length", y = "Score", title = "Score by Module Presentation Length and Length and Assessment Type") +
+  guides(fill = FALSE)
+```
+
+Hmm... It looks like there *is* a slight relation between module presentation length and score that could perhaps interact with assessment type. Within CMA, scores appear to increase as module presentation length decreases. Conversely, within the final exam, scores appear to increase as module presentation length increases. I don't have a theoretical explanation for why this might be the case, but it's perhaps worth looking into. 
+
+OK, that's all from me! That was a lot of work. I think I'll have some of the beer that was part of the #TidyTuesday dataset from Lab 2. 
