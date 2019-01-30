@@ -105,7 +105,7 @@ ses <- info %>%
 ses_info_assess <- semi_join(info_assess, ses)
 ```
 
-Alright, now let's see if deprivation indeed impacted TMA score. We'll run a plot similar to the one above, except by substituting highest level of education with deprivation. That means we'll be parsing out differences in score by gender and final result designation as well. 
+Alright, now let's see if deprivation indeed impacted overall test scores. We'll run a plot similar to the one above, except by substituting highest level of education with deprivation and looking at grades across all examinations, as opposed to just the TMA. That means we'll be parsing out differences in score by gender and final result designation as well. 
 
 # Visualization #2.
 
@@ -115,7 +115,7 @@ ggplot(ses_info_assess, aes(x = imd_band, y = score, fill = gender)) +
   theme_minimal() +
   coord_flip() +
   facet_wrap(~final_result, ncol = 1) +
-  labs(x = "Deprivation", y = "Average Score", title = "Average TMA Scores", subtitle = "Results displayed by deprivation, gender, and final result designation") +
+  labs(x = "Deprivation", y = "Average Score", title = "Average Test Scores", subtitle = "Results displayed by deprivation, gender, and final result designation") +
   scale_fill_discrete(name = "Gender")
 ```
 
@@ -131,7 +131,7 @@ ggplot(ses_info_assess, aes(x = score, fill = imd_band)) +
   labs(x = "Average Score", y = "Density", title = "Density Plot of TMA Scores", subtitle = "Results displayed by highest vs. lowest level of deprivation")
 ```
 
-This density plot is somewhat revealing. Interestingly, it looks like a greater proportion of 0-10% IMD band students had lower TMA scores than 90-100% IMD band students. In other words, the underlying density distribution for 90-100% IMD band students was more negatively skewed than it was for 0-10% IMD band students.
+This density plot is somewhat revealing. Interestingly, it looks like a greater proportion of 0-10% IMD band students had lower test scores than 90-100% IMD band students. In other words, the underlying density distribution for 90-100% IMD band students was more negatively skewed than it was for 0-10% IMD band students.
 
 Also, of note is that this difference is only noticeable in aggregate. When faceting by final result designation, the differences are only slightly apparent.
 
